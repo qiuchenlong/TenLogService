@@ -1,5 +1,5 @@
 ==============
-LogService 接口文档 version 0.8.21
+LogService 接口文档 version 0.8.23
 ==============
 
 
