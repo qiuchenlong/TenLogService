@@ -1,0 +1,2 @@
+tornado==4.4.2
+tornado_mysql==0.5.1
