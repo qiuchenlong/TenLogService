@@ -10,7 +10,6 @@ Create on 2017年08月14日 14:54
 Copyright(c) __10.com__. All rights reserved.
 '''
 
-import os
 
 from tornado import httpserver, ioloop, web, gen
 import tornado.options
@@ -21,7 +20,6 @@ from tornado.options import define, options
 from handlers import HANDLERS, TEMPLATE_PATH
 
 
-import subprocess
 import tornado_mysql
 
 
