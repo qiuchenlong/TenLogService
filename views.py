@@ -9,23 +9,17 @@ Create on 2017年08月14日 15:00
 
 Copyright(c) __10.com__. All rights reserved.
 '''
-
-
+import datetime
 import json
+import threading
 
 import tornado_mysql
 from tornado import gen, web
-from tornado_mysql import pools
 
-import asyncio
-
-from base.BaseHandler import BaseHandler
-from utils.uuids import UUID
+from controller.BaseHandler import BaseHandler
 from utils.ips import IP
-
-import time
-import datetime
-
+from utils.uuids import UUID
+lock = threading.Lock()
 
 
 class IndexHandler(BaseHandler):
@@ -95,22 +89,23 @@ class RegisterHandler(BaseHandler):
 
     @gen.coroutine
     def do_async_db(self, phoneNum, username, email, password):
-        cur = self.application.db.cursor()
+        db_pool = self.application.db_pool
         try:
-            yield cur.execute("INSERT INTO ten_logservice.t_user (user_name, user_phone, user_email, user_password) VALUES ('%s', '%s', '%s', '%s')" % (phoneNum, username, email, password))
+            yield db_pool.execute("INSERT INTO ten_logservice.t_user (user_name, user_phone, user_email, user_password) VALUES ('%s', '%s', '%s', '%s')" % (username, phoneNum, email, password))
             # 提交
-            yield self.application.db.commit()
+            # yield self.application.db.commit()
         except:
             print("写入数据库失败")
             # 回滚
-            yield self.application.db.rollback()
+            # yield self.application.db.rollback()
             ret = {'msg': '注册失败，用户已存在', 'data': {}}
             raise gen.Return((1001, ret))
 
 
-        yield cur.execute("SELECT * FROM ten_logservice.t_user WHERE user_phone = '%s'" % phoneNum)
+        cur = yield db_pool.execute("SELECT * FROM ten_logservice.t_user WHERE user_phone = '%s'" % phoneNum)
         if cur.rowcount > 0:
-            user_id = cur.fetchone()[0]
+            res_set = cur._rows[0]
+            user_id = res_set['user_id']
 
         ret = {'msg': '注册成功', 'data': {
             'userId': user_id,
@@ -121,9 +116,76 @@ class RegisterHandler(BaseHandler):
         raise gen.Return((200, ret))
 
 
-class LoginHandler(BaseHandler):
+class LoginHtmlHandler(BaseHandler):
     def get(self):
-        phoneNum = self.get_argument("phoneNum")
+        self.render("login.html", title = 'LogService',)
+
+    @gen.coroutine
+    def post(self):
+        username = self.get_argument('username')
+        password = self.get_argument('password')
+        next_url = self.get_argument('next', '/')
+        user = None
+        # user = yield self.async_do(UserService.get_user, self.db, username)
+        if user is not None and user.password == password:
+            self.save_login_user(user)
+            self.add_message('success', u'登陆成功！欢迎回来，{0}!'.format(username))
+            self.redirect(next_url)
+        else:
+            self.add_message('danger', u'登陆失败！用户名或密码错误，请重新登陆。')
+            self.get()
+
+class LoginHandler(BaseHandler):
+    # @BaseHandler.record_log
+    # @web.asynchronous
+    @gen.coroutine
+    def post(self):
+        username = self.get_argument('username')
+        password = self.get_argument('password')
+
+        cursor = yield self.application.db_pool.execute(r"SELECT * FROM t_user WHERE user_name = '%s'" % username)
+        if cursor.rowcount:
+            res_set = cursor._rows[0]
+            user_id = res_set['user_id']
+            user_password = res_set['user_password']
+
+            if user_password == password:
+                self.redirect('/panel?user_id=%d' % user_id)
+            else:
+                self.redirect('/login')
+        else:
+            self.redirect('/login')
+
+        # cur = self.application.db.cursor()
+        # yield cur.execute(r"SELECT * FROM t_user WHERE user_name = '%s'" % username)
+        # if cur.rowcount:
+        #     user_id = cur._rows[0][0]
+        #     user_password = cur._rows[0][4]
+        #
+        #     if user_password == password:
+        #         self.redirect('/panel?user_id=%d' % user_id)
+        #     else:
+        #         self.redirect('/login')
+        # else:
+        #     self.redirect('/login')
+
+        # user = yield self.async_do(UserService.get_user, self.db, username)
+        # if user is not None and user.password == password:
+            # self.save_login_user(user)
+            # self.add_message('success', u'登陆成功！欢迎回来，{0}!'.format(username))
+            # self.redirect(next_url)
+        # else:
+            # self.add_message('danger', u'登陆失败！用户名或密码错误，请重新登陆。')
+            # self.get()
+
+
+
+
+class PanelHtmlHandler(BaseHandler):
+    def get(self):
+        self.render("panel.html", title = 'LogService',)
+
+
 
 
 
@@ -305,7 +367,8 @@ class CreateAppHandler(BaseHandler):
                           languages VARCHAR(64) NOT NULL,
                           timezone VARCHAR(64) NOT NULL,
                           user_id VARCHAR(64) NOT NULL,
-                          types INTEGER(2) NOT NULL
+                          types INTEGER(2) NOT NULL,
+                          timestamp VARCHAR(32) NOT NULL
                           );
                           ''')
             except:
@@ -492,11 +555,14 @@ class IdentifyServiceHandler(BaseHandler):
         languages = device_info_object["language"]
         timezone = device_info_object["timezone"]
 
+        begin_date = datetime.datetime.now()
+        begin_date = begin_date.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = begin_date
         # 手机设备id
         (status, device_id) = yield self.do_async_db2(app_id, device_md5, platform, device_type, l, h, device_brand,
                                                       device_model,
                                                       resolution, imei, mac, is_prison_break, is_crack, languages,
-                                                      timezone, user_id)
+                                                      timezone, user_id, timestamp)
 
         if status == 0:
             # 处理返回值、返回数据
@@ -505,8 +571,7 @@ class IdentifyServiceHandler(BaseHandler):
             return self.finish(rsp)
 
         # begin_date = time.time()
-        begin_date = datetime.datetime.now()
-        begin_date = begin_date.strftime("%Y-%m-%d %H:%M:%S")
+
         (status, ls_id) = yield self.do_async_db3(app_id, user_id, device_id, begin_date, platform)
 
         property_object = json.loads(user_property)
@@ -657,16 +722,16 @@ class IdentifyServiceHandler(BaseHandler):
             raise gen.Return('')
 
     @gen.coroutine
-    def do_async_db2(self, app_id, device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id):
+    def do_async_db2(self, app_id, device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, timestamp):
         types = 1
         device_id = 0
         cur = self.application.db.cursor()
         try:
             yield cur.execute(
                 "INSERT INTO ten_logservice.t_device_" + str(
-                    app_id) + " (device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types) VALUES"
-                              " ('%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d')" % (
-                                 device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types))
+                    app_id) + " (device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types, timestamp) VALUES"
+                              " ('%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s')" % (
+                                 device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types, timestamp))
 
             if cur.rowcount > 0:
                 device_id = cur.lastrowid
@@ -882,13 +947,15 @@ class TrackServcieHandler(BaseHandler):
             rsp = self.set_res_data("Identify", 1002, '您还没有注册此应用', {})
             return self.finish(rsp)
 
+        begin_date = datetime.datetime.now()
+        begin_date = begin_date.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = begin_date
         # 手机设备id
         device_id = yield self.do_async_db2(app_id, device_md5, platform, device_type, l, h, device_brand, device_model,
                                             resolution, imei, mac, is_prison_break, is_crack, languages, timezone,
-                                            user_id)
+                                            user_id, timestamp)
 
-        begin_date = datetime.datetime.now()
-        begin_date = begin_date.strftime("%Y-%m-%d %H:%M:%S")
+
         utc_date_s = begin_date
         session_id = 1
         begin_day_id = 1
@@ -1154,7 +1221,7 @@ class TrackServcieHandler(BaseHandler):
 
     @gen.coroutine
     def do_async_db2(self, app_id, device_md5, platform, device_type, l, h, device_brand, device_model, resolution,
-                     imei, mac, is_prison_break, is_crack, languages, timezone, user_id):
+                     imei, mac, is_prison_break, is_crack, languages, timezone, user_id, timestamp):
         types = 2
         device_id = 0
         cur = self.application.db.cursor()
@@ -1162,10 +1229,10 @@ class TrackServcieHandler(BaseHandler):
         if True:
             yield cur.execute(
                 "INSERT INTO ten_logservice.t_device_" + str(
-                    app_id) + " (device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types) VALUES"
-                              " ('%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d')" % (
+                    app_id) + " (device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types, timestamp) VALUES"
+                              " ('%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s')" % (
                     device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac,
-                    is_prison_break, is_crack, languages, timezone, user_id, types))
+                    is_prison_break, is_crack, languages, timezone, user_id, types, timestamp))
 
             if cur.rowcount > 0:
                 device_id = cur.lastrowid
@@ -1478,13 +1545,15 @@ class StartTrackServcieHandler(BaseHandler):
             rsp = self.set_res_data("Identify", 1002, '您还没有注册此应用', {})
             return self.finish(rsp)
 
+        begin_date = datetime.datetime.now()
+        begin_date = begin_date.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = begin_date
         # 手机设备id
         device_id = yield self.do_async_db2(app_id, device_md5, platform, device_type, l, h, device_brand, device_model,
                                             resolution, imei, mac, is_prison_break, is_crack, languages, timezone,
-                                            user_id)
+                                            user_id, timestamp)
 
-        begin_date = datetime.datetime.now()
-        begin_date = begin_date.strftime("%Y-%m-%d %H:%M:%S")
+
         utc_date_s = begin_date
         session_id = 1
         begin_day_id = 1
@@ -1551,7 +1620,7 @@ class StartTrackServcieHandler(BaseHandler):
 
     @gen.coroutine
     def do_async_db2(self, app_id, device_md5, platform, device_type, l, h, device_brand, device_model, resolution,
-                     imei, mac, is_prison_break, is_crack, languages, timezone, user_id):
+                     imei, mac, is_prison_break, is_crack, languages, timezone, user_id, timestamp):
         types = 2
         device_id = 0
         cur = self.application.db.cursor()
@@ -1559,10 +1628,10 @@ class StartTrackServcieHandler(BaseHandler):
         if True:
             yield cur.execute(
                 "INSERT INTO ten_logservice.t_device_" + str(
-                    app_id) + " (device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types) VALUES"
-                              " ('%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d')" % (
+                    app_id) + " (device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac, is_prison_break, is_crack, languages, timezone, user_id, types, timestamp) VALUES"
+                              " ('%s', '%d', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%d', '%s')" % (
                     device_md5, platform, device_type, l, h, device_brand, device_model, resolution, imei, mac,
-                    is_prison_break, is_crack, languages, timezone, user_id, types))
+                    is_prison_break, is_crack, languages, timezone, user_id, types, timestamp))
 
             if cur.rowcount > 0:
                 device_id = cur.lastrowid
@@ -1995,3 +2064,178 @@ class EndTrackServcieHandler(BaseHandler):
         # yield cur.close()
         raise gen.Return((200, {}))
         # return (200, {})
+
+
+
+# from tornado_mysql import pools, cursors
+#
+# pools.DEBUG = True
+#
+#
+# POOL = pools.Pool(
+#     dict(
+#         host='47.90.50.20', port=3306, user='root', passwd='123456', db='ten_logservice', #cursorclass = cursors.DictCursor
+#         charset = 'utf8',
+#     ),
+#     max_idle_connections=1,
+#     max_recycle_sec=3)
+
+
+class AppInfoHtmlHandler(BaseHandler):
+    # @BaseHandler.record_log
+    # @web.asynchronous
+    @gen.coroutine
+    def get(self):
+        user_id = self.get_argument("user_id")
+
+        cur = yield self.application.db_pool.execute("SELECT * FROM t_user as user, t_app as app WHERE app.user_id = '%s'" % user_id)
+        if cur.rowcount:
+            try:
+                app_id = cur._rows[0]['app_id']
+                app_name = cur._rows[0]['app_name']
+                user_id = cur._rows[0]['user_id']
+                user_name = cur._rows[0]['user_name']
+            except:
+                pass
+
+        cur = yield self.application.db_pool.execute("SELECT * FROM t_user_" + str(app_id) + " as user, t_device_" + str(app_id) + " as device"
+                                                                                                         " WHERE"
+                                                                                     " device.user_id = user.user_id")
+        log = []
+        if cur.rowcount:
+            print(r'len1=', len(cur._rows))
+            print(r'len2=', len(cur._rows[0]))
+            for i in range(len(cur._rows)):
+                #     # for j in range(len(cur2._rows[i])):
+                #     #     print(i, cur2._rows[i][j])
+                #
+                #     print('\n')
+                # print(r'ls_id', cur2._rows[0][0])
+                print(cur._rows[i]['timestamp'], cur._rows[i]['device_model'])
+                log.append(str(cur._rows[i]['timestamp']) + "," + cur._rows[i]['device_model'])
+
+
+
+        # cur = self.application.db.cursor()
+        # (status, rsp) = yield self.do_async_db(user_id)
+        # app_id = rsp['app_id']
+        # app_name = rsp['app_name']
+        # user_name = rsp['user_name']
+        #
+        # # log = []
+        # (status, log) = yield self.do_async_db2(app_id)
+
+        # cur.close()
+
+
+
+        # cur2 = self.application.db.cursor()
+
+
+        # cur2 = self.application.db.cursor()
+
+
+        # cur2.close()
+
+
+
+        # #
+        # # cur = self.application.db.cursor()
+        # yield cur.execute("SELECT * FROM t_device_" + str(app_id) + " WHERE types = '%d' and user_id = '%s'" % (1, user_id))
+        # if cur.rowcount:
+        #     print(r'device_id', cur._rows[0][0])
+
+
+        # yield cur.execute("SELECT * FROM t_event_all_" + str(app_id) + " ")
+        # if cur.rowcount:
+        #     print(r'event_id', cur._rows[0][0])
+        #     print(r'')
+        # cur.close()
+
+
+
+
+        # self.application.db.
+
+
+        # self.render("register.html", title='LogService', )
+        self.render("ten_panel.html", title='LogService',
+                    appname = app_name,
+                    username = user_name,
+                    log = log,
+                    )
+        # self.write("")
+        # self.finish()
+
+    @gen.coroutine
+    def do_async_db(self, user_id):
+        cur = self.application.db.cursor()
+        try:
+            result = yield cur.execute("SELECT * FROM t_user as user, t_app as app WHERE app.user_id = '%s'" % user_id)
+        except:
+            pass
+        print('db1')
+        print(cur.description)
+
+        app_id = 0
+        app_name = ""
+        user_id = ''
+        user_name = ""
+        if cur.rowcount:
+            # print(r'用户id', cur._rows[0][0])
+            # print(r'用户名', cur._rows[0][1])
+            # print(r'应用id', cur._rows[0][5])
+            # print(r'应用名称', cur._rows[0][7])
+            try:
+                app_id = cur._rows[0][0]
+                app_name = cur._rows[0][1]
+                user_id = cur._rows[0][5]
+                user_name = cur._rows[0][7]
+            except:
+                pass
+
+        # if app_id == 0:
+        #     self.render("ten_panel.html", title='LogService',
+        #                 appname=app_name,
+        #                 username=user_name,
+        #                 log=''
+        #                 )
+
+        cur.close()
+
+        raise gen.Return((200, {'app_id': app_id,
+                                'app_name': app_name,
+                                'user_id': user_id,
+                                'user_name': user_name,
+                                }))
+
+
+    @gen.coroutine
+    def do_async_db2(self, app_id):
+        cur2 = self.application.db.cursor()
+        sql = "SELECT * FROM t_user_" + str(app_id) + " as user, t_device_" + str(app_id) + " as device WHERE device.user_id = user.user_id"
+        try:
+            result = yield cur2.execute("SELECT * FROM t_user_" + str(app_id) + " as user, t_device_" + str(app_id) + " as device"
+                                                                                                         " WHERE"
+                                                                                     " device.user_id = user.user_id")
+        except:
+            pass
+        print('db2')
+        print(cur2.description)
+        print(sql)
+        log = []
+        if cur2.rowcount:
+            print(r'len1=', len(cur2._rows))
+            print(r'len2=', len(cur2._rows[0]))
+            for i in range(len(cur2._rows)):
+                #     # for j in range(len(cur2._rows[i])):
+                #     #     print(i, cur2._rows[i][j])
+                #
+                #     print('\n')
+                # print(r'ls_id', cur2._rows[0][0])
+                print(cur2._rows[i][22], cur2._rows[i][12])
+                log.append(str(cur2._rows[i][22]) + "," + cur2._rows[i][12])
+
+        cur2.close()
+
+        raise gen.Return((200, log))
