@@ -44,10 +44,10 @@ site_cache_config = dict(
 
 # 数据库配置
 detabase_config = dict(
-    host = "47.90.50.20",
+    host = "118.178.184.132",
     port = 3306,
     user = "root",
-    passwd = "123456",
+    passwd = "Cindy1024",
     db = "ten_logservice",
     charset = "utf8",
     cursorclass = cursors.DictCursor, #数组转json对象

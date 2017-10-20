@@ -26,7 +26,7 @@
         <div class="container">
             <h2  class="blog-title"><a href="#">控制面板</a></h2>
             <p class="lead signature">
-               {{ appname }} | {{ username }}
+               {{ appname }} | {{ username }} | 用户ID：{{ userId }} | 应用key：{{ app_key }}
             </p>
         </div>
     </div>
@@ -42,22 +42,42 @@
             </div>
             <div class="collapse navbar-collapse">
                 <ul class="nav navbar-nav">
-                    <li class=""><a href="/"><span class="glyphicon glyphicon-home"> 首页</span></a></li>
+                    <li class=""><a href="#"><span class="glyphicon glyphicon-home"> 首页</span></a></li>
                             <li class="dropdown">
                                 <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown">
-                                    muna.name
+                                    管理
                                     <b class="caret"></b></a>
                                 <ul class="dropdown-menu">
                                             <li>
-                                                <a href="#">
+                                                <a href="/create">
+                                                    创建应用
                                                 </a>
                                             </li>
                                             <li class="divider"></li>
                                 </ul>
                             </li>
-                            <li>
-                                <a href="#">
-                                </a>
+                            <li class="dropdown">
+                                <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown">
+                                    API
+                                    <b class="caret"></b></a>
+                                <ul class="dropdown-menu">
+                                            <li>
+                                                <a target="_blank" href="https://github.com/qiuchenlong/TenLogService/blob/master/API.rst">
+                                                    识别用户
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a target="_blank" href="https://github.com/qiuchenlong/TenLogService/blob/master/API.rst">
+                                                    自定义事件
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a target="_blank" href="https://github.com/qiuchenlong/TenLogService/blob/master/API.rst">
+                                                    事件时长统计（startTrack、endTrack）
+                                                </a>
+                                            </li>
+                                            <li class="divider"></li>
+                                </ul>
                             </li>
                 </ul>
                 <ul class="nav navbar-nav navbar-right">
@@ -67,9 +87,7 @@
                                 <b class="caret"></b>
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a href="#">发表博文</a></li>
-                                <li><a href="#">管理博客</a></li>
-                                <li><a href="#">退出登陆</a></li>
+                                <li><a href="/login">退出登陆</a></li>
                             </ul>
                         </li>
                 </ul>
@@ -124,7 +142,7 @@
                                 <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
                             </div>
                 </div>
-                <div class="col-md-4 blog_nav">
+                <div class="col-md-4 blog_nav" hidden>
                                     <div id="1" class="entry-box">
                                         <h5><strong>plugin.title</strong></h5>
                                     </div>

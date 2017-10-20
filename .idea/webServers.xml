@@ -2,8 +2,8 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="cd800697-9264-4572-8c64-bee876e21c25" name="Centos 7 47.90.50.20" url="http://47.90.50.20">
-        <fileTransfer host="47.90.50.20" port="22" rootFolder="/root/logService" accessType="SFTP">
+      <webServer id="cd800697-9264-4572-8c64-bee876e21c25" name="Centos 7 118.178.184.132" url="http://118.178.184.132">
+        <fileTransfer host="118.178.184.132" port="22" rootFolder="/root/logService" accessType="SFTP">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" />
           </advancedOptions>

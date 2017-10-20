@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="Centos 7 47.90.50.20">
+  <component name="PublishConfigData" serverName="Centos 7 118.178.184.132">
     <serverData>
-      <paths name="Centos 7 47.90.50.20">
+      <paths name="Centos 7 118.178.184.132">
         <serverdata>
           <mappings>
             <mapping deploy="/" local="$PROJECT_DIR$" web="/root/logService" />

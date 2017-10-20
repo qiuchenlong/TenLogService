@@ -1,7 +1,8 @@
 /*CSS For common appearance*/
 body {
     /*background: #F0F0F0;*/
-    background: url('../images/background.jpg');
+    /*background: url('../images/background.jpg');*/
+    background: url('../images/body_bg_page.jpg');
 }
 #fix-alert{
     position: fixed;
@@ -16,7 +17,7 @@ body {
     padding-left: 0px;
 }
 .content {
-    min-height: 800px;
+    min-height: 600px;
 }
 .article-entry-sum {
     margin-top: 5px;

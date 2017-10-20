@@ -475,6 +475,11 @@ class AppInfoHtmlHandler(BaseHandler):
         user_id = self.get_argument("user_id")
         page = int(self.get_argument("page"))
 
+        app_id = 0
+        app_name = ""
+        user_name = ""
+        app_key = ""
+
         cur = yield self.application.db_pool.execute(
             "SELECT * FROM t_user as user, t_app as app WHERE app.user_id = '%s'" % user_id)
         if cur.rowcount:
@@ -483,45 +488,55 @@ class AppInfoHtmlHandler(BaseHandler):
                 app_name = cur._rows[0]['app_name']
                 user_id = cur._rows[0]['user_id']
                 user_name = cur._rows[0]['user_name']
+                app_key = cur._rows[0]['app_key']
             except:
                 pass
 
-        cur = yield self.application.db_pool.execute(
-            "SELECT * FROM t_user_" + str(app_id) + " as user, t_device_" + str(app_id) + " as device, t_event_all_" + str(app_id) + " as event"
-                                                                                          " WHERE"
-                                                                                          " device.user_id = user.user_id"
-                                                                                          " AND"
-                                                                                          " device.device_id = event.device_id"
-                                                                                          " LIMIT %d, %d" % (page * 10, 10))
+
+        print(app_id, app_name, user_id, user_name, app_key)
+
         log = []
-        if cur.rowcount:
-            # print(r'len1=', len(cur._rows))
-            # print(r'len2=', len(cur._rows[0]))
-            for i in range(len(cur._rows)):
-                #     # for j in range(len(cur2._rows[i])):
-                #     #     print(i, cur2._rows[i][j])
-                #
-                #     print('\n')
-                # print(r'ls_id', cur2._rows[0][0])
-                # print(cur._rows[i]['timestamp'], cur._rows[i]['device_model'])
-                string = ""
-                string += app_name
-                string += ","
-                string += str(cur._rows[i]['timestamp'])
-                string += ","
-                string += str(cur._rows[i]['device_model'])
-                string += ","
-                string += str(cur._rows[i]['ip'])
-                string += ","
-                string += str(cur._rows[i]['country'])
-                string += ","
-                string += str(cur._rows[i]['duration'])
-                string += ","
-                string += str(cur._rows[i]['mac'])
-                string += ","
-                string += str(cur._rows[i]['languages'])
-                string += ","
-                log.append(string)
+        try:
+
+            cur = yield self.application.db_pool.execute(
+                "SELECT * FROM t_user_" + str(app_id) + " as user, t_device_" + str(app_id) + " as device, t_event_all_" + str(app_id) + " as event"
+                                                                                              " WHERE"
+                                                                                              " device.user_id = user.user_id"
+                                                                                              " AND"
+                                                                                              " device.device_id = event.device_id"
+                                                                                              " LIMIT %d, %d" % (page * 10, 10))
+
+            if cur.rowcount:
+                # print(r'len1=', len(cur._rows))
+                # print(r'len2=', len(cur._rows[0]))
+                for i in range(len(cur._rows)):
+                    #     # for j in range(len(cur2._rows[i])):
+                    #     #     print(i, cur2._rows[i][j])
+                    #
+                    #     print('\n')
+                    # print(r'ls_id', cur2._rows[0][0])
+                    # print(cur._rows[i]['timestamp'], cur._rows[i]['device_model'])
+                    string = ""
+                    string += app_name
+                    string += ","
+                    string += str(cur._rows[i]['timestamp'])
+                    string += ","
+                    string += str(cur._rows[i]['device_model'])
+                    string += ","
+                    string += str(cur._rows[i]['ip'])
+                    string += ","
+                    string += str(cur._rows[i]['country'])
+                    string += ","
+                    string += str(cur._rows[i]['duration'])
+                    string += ","
+                    string += str(cur._rows[i]['mac'])
+                    string += ","
+                    string += str(cur._rows[i]['languages'])
+                    string += ","
+                    log.append(string)
+        except:
+            log.append("您还没有创建应用")
+            pass
 
         # cur = self.application.db.cursor()
         # (status, rsp) = yield self.do_async_db(user_id)
@@ -569,6 +584,8 @@ class AppInfoHtmlHandler(BaseHandler):
         self.render("ten_panel.html", title='LogService',
                     appname=app_name,
                     username=user_name,
+                    userId = user_id,
+                    app_key = app_key,
                     log=log,
                     )
         # self.write("")

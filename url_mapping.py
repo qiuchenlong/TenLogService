@@ -21,6 +21,7 @@ from tornado.web import url
 
 # url路由
 handlers = [
+    url(r"/", controller.user.LoginHandler, name="login"),
     url(r"/login", controller.user.LoginHandler, name="login"),
     url(r"/register", controller.user.RegisterHandler, name="register"),
     url(r"/create", controller.app.CreateAppHandler, name="create_app"),
